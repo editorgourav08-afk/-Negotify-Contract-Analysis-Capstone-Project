@@ -67,7 +67,7 @@ An autonomous AI agent that empowers freelancers and small businesses to review 
 │  ─────────────────────  │
 │                         │
 │  Freelancers    ░░░░    │
-│  ($0 budget)    ░░░░    │
+│  ($10 budget)   ░░░░    │
 │                         │
 └─────────────────────────┘
 ```
@@ -89,9 +89,6 @@ Negotify is an **autonomous AI agent** built on Google's Agent Development Kit (
 3. **📧 Negotiates** better terms via email—completely autonomously
 4. **📈 Learns** from every negotiation to improve over time
 
-<p align="center">
-  <img src="assets/negotify-workflow.png" alt="Negotify Workflow" width="800"/>
-</p>
 
 ### How It Works
 
@@ -144,7 +141,9 @@ graph LR
 
 Negotify implements a **sophisticated multi-agent architecture** using Google ADK's agent orchestration capabilities:
 
-<img width="1920" height="1080" alt="MultiAgent Architecture" src="https://github.com/user-attachments/assets/55a09da1-70b7-40f0-8dae-aaf327d31410" />
+<img width="1920" height="1080" alt="architectureof agents" src="https://github.com/user-attachments/assets/e0d73604-2793-494c-ae10-0287cb6c76ab" />
+
+
 
 
 ### Agent Communication Flow
@@ -338,7 +337,8 @@ class NegotifyTracer:
 
 ### Risk Categories Analyzed
 
-<img width="1024" height="1024" alt="RISK DETECTION ENGINE" src="https://github.com/user-attachments/assets/c5bdb085-4301-4883-a883-af2d1f0a50b5" />
+
+<img width="1024" height="1024" alt="RISK DETECTION ENGINE" src="https://github.com/user-attachments/assets/36a3b96a-6c99-4efc-91b2-2b55f1f8875c" />
 
 
 ### Autonomous Negotiation
@@ -676,12 +676,7 @@ instruction="""
 ---
 
 ## 🎬 Demo Video
-
-<p align="center">
-  <a href="https://www.youtube.com/watch?v=YOUR_VIDEO_ID">
-    <img src="assets/demo-thumbnail.png" alt="Negotify Demo" width="600"/>
-  </a>
-</p>
+https://youtu.be/FP07zTBxqCk
 
 
 ## 🗺️ Future Roadmap
@@ -711,7 +706,7 @@ instruction="""
 
 Kaggle: @gouravpandit00 
 
-GitHub: @yourusername
+GitHub: @editorgourav08-afk
 
 </td>
 </tr>
@@ -743,3 +738,4 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
   <a href="#-negotify">Back to Top ⬆️</a>
 
 </p>
+

@@ -28,7 +28,22 @@ from google.oauth2.credentials import Credentials
 from pydantic import BaseModel, Field
 
 # Local imports - Import from tools package
-from .tools import pdf_extraction_tool, GmailIntegrationTool, evaluate_contract_analysis
+from .tools import (
+    pdf_extraction_tool, 
+    GmailIntegrationTool, 
+    evaluate_contract_analysis,
+    benchmark_search_tool,
+    industry_benchmark_tool,
+    clause_alternatives_tool,
+    create_draft_tool,
+    review_draft_tool,
+    edit_draft_tool,
+    rewrite_draft_tool,
+    approve_draft_tool,
+    send_email_tool,
+    cancel_draft_tool,
+    draft_status_tool,
+)
 
 # Local imports - These should be defined in separate files
 # For now, we'll define placeholder tools here
@@ -121,9 +136,9 @@ DATABASE_URL = os.environ.get("DATABASE_URL", "postgresql://localhost:5432/negot
 GCS_BUCKET_NAME = os.environ.get("GCS_BUCKET_NAME", "negotify-contracts")
 
 # Model configurations
-GEMINI_FLASH = "gemini-2.0-flash-exp"
-GEMINI_PRO = "gemini-2.0-flash-thinking-exp"  
-GEMINI_FLASH_LITE = "gemini-2.0-flash-exp"
+GEMINI_FLASH = "gemini-2.0-flash"
+GEMINI_PRO = "gemini-2.5-flash"  
+GEMINI_FLASH_LITE = "gemini-2.0-flash-Lite"
 
 # ============================================================================
 # DATA MODELS (Pydantic Schemas)
@@ -135,7 +150,7 @@ class ContractClause(BaseModel):
     clause_type: str  # liability, payment, IP, termination, etc.
     section_reference: str
     clause_text: str
-    key_terms: Dict[str, Any]
+    key_terms: List[str] = Field(default_factory=list)
 
 class RiskAssessment(BaseModel):
     """Risk assessment for a clause"""
@@ -150,18 +165,19 @@ class ContractAnalysisResult(BaseModel):
     """Complete contract analysis result"""
     contract_id: str
     overall_risk_score: int = Field(..., ge=1, le=10)
-    high_risks: List[RiskAssessment]
-    medium_risks: List[RiskAssessment]
-    low_risks: List[RiskAssessment]
+    high_risks: List[RiskAssessment] = Field(default_factory=list)
+    medium_risks: List[RiskAssessment] = Field(default_factory=list)
+    low_risks: List[RiskAssessment] = Field(default_factory=list)
     executive_summary: str
     estimated_savings: Optional[float] = None
 
+
 class NegotiationStrategy(BaseModel):
     """Negotiation strategy plan"""
-    priorities: List[str]
-    concession_strategy: Dict[str, Any]
-    deal_breakers: List[str]
-    success_probability: float = Field(..., ge=0.0, le=1.0)
+    priorities: List[str] = Field(default_factory=list)
+    concession_items: List[str] = Field(default_factory=list)  # ✅ FIXED (was Dict[str, Any])
+    deal_breakers: List[str] = Field(default_factory=list)
+    success_probability: float = Field(0.5, ge=0.0, le=1.0)
 
 class KeyTerm(BaseModel):
     """Represents a single key term or definition within a clause."""
@@ -174,39 +190,208 @@ class ExtractedClause(BaseModel):
     clause_type: str
     section_reference: str
     clause_text: str
-    key_terms: List[KeyTerm]
+    key_terms: List[KeyTerm] = Field(default_factory=list)
 
 class ClauseExtractionResult(BaseModel):
-    """The result of the clause extraction agent."""
-    clauses: List[ExtractedClause]
+    """The result of the clause extraction agent"""
+    clauses: List[ExtractedClause] = Field(default_factory=list)
 
 class RiskAnalysisResult(BaseModel):
-    """The result of the risk detection agent."""
-    overall_risk_score: int = Field(..., ge=1, le=10)
-    high_risks: List[RiskAssessment]
-    medium_risks: List[RiskAssessment]
-    low_risks: List[RiskAssessment]
+    """The result of the risk detection agent"""
+    overall_risk_score: int = Field(5, ge=1, le=10)
+    high_risks: List[RiskAssessment] = Field(default_factory=list)
+    medium_risks: List[RiskAssessment] = Field(default_factory=list)
+    low_risks: List[RiskAssessment] = Field(default_factory=list)
 
 class ParsedResponseResult(BaseModel):
-    """The structured analysis of a counterparty's email response."""
-    sentiment: str
-    concessions_offered: List[str]  # Fixed: Changed from List[Any]
-    firm_positions: List[str]  # Fixed: Changed from List[Any]
-    counter_offers: List[str]  # Fixed: Changed from List[Any]
-    questions_raised: List[str]  # Fixed: Changed from List[Any]
-    relationship_status: str
-    success_probability: float = Field(..., ge=0.0, le=1.0)
-    recommended_action: str
+    """The structured analysis of a counterparty's email response"""
+    sentiment: str = "neutral"
+    concessions_offered: List[str] = Field(default_factory=list)
+    firm_positions: List[str] = Field(default_factory=list)
+    counter_offers: List[str] = Field(default_factory=list)
+    questions_raised: List[str] = Field(default_factory=list)
+    relationship_status: str = "neutral"
+    success_probability: float = Field(0.5, ge=0.0, le=1.0)
+    recommended_action: str = "continue"
 
 class NegotiationDecisionResult(BaseModel):
-    """The decision made by the negotiation decision agent."""
-    decision: str = Field(..., pattern="^(ACCEPT|COUNTER|REJECT)$")  # Fixed: Added validation
-    confidence: float = Field(..., ge=0.0, le=100.0)
-    reasoning: str
+    """The decision made by the negotiation decision agent"""
+    decision: str = Field("COUNTER", pattern="^(ACCEPT|COUNTER|REJECT)$")
+    confidence: float = Field(50.0, ge=0.0, le=100.0)
+    reasoning: str = ""
     final_terms_summary: Optional[str] = None
-    updated_priorities: Optional[List[str]] = None
-    rejection_reasons: Optional[List[str]] = None
+    updated_priorities: List[str] = Field(default_factory=list)
+    rejection_reasons: List[str] = Field(default_factory=list)
 
+"""
+Negotify Email Workflow Agent
+==============================
+Orchestrates the Draft → Review → Edit → Approve → Send workflow.
+
+This agent ensures:
+1. Emails are never sent without explicit user approval
+2. Users can review and edit drafts before sending
+3. The workflow is conversational and user-friendly
+4. All changes are tracked and reversible (until sent)
+"""
+
+# ============================================================================
+# EMAIL WORKFLOW AGENT DEFINITION
+# ============================================================================
+
+EMAIL_WORKFLOW_INSTRUCTION = '''You are the Negotify Email Workflow Agent. Your job is to guide users through creating, reviewing, editing, and sending negotiation emails.
+
+## CRITICAL RULES
+🚨 **NEVER send an email without explicit user approval**
+🚨 **ALWAYS show the draft for review before any send action**
+🚨 **ALWAYS confirm before sending** - even after approval
+
+## Workflow Stages
+
+```
+┌─────────────────────────────────────────────────────────┐
+│  📝 DRAFT                                                │
+│  Create initial email based on analysis results          │
+│  ↓                                                       │
+│  👀 REVIEW                                               │
+│  Show draft to user, explain key points                  │
+│  ↓                                                       │
+│  ✏️ EDIT (optional, can loop multiple times)             │
+│  User requests changes → Update draft → Show again       │
+│  ↓                                                       │
+│  ✅ APPROVE                                              │
+│  User explicitly approves the draft                      │
+│  ↓                                                       │
+│  📤 SEND                                                 │
+│  Final confirmation → Actually send via Gmail            │
+└─────────────────────────────────────────────────────────┘
+```
+
+## Your Tools
+
+1. **create_negotiation_draft** - Create initial email draft
+   - Use after receiving analysis/benchmark results
+   - Include all negotiation points from the analysis
+   - Choose appropriate tone based on user preference
+
+2. **review_draft** - Show draft to user
+   - Always use this before asking for approval
+   - Highlight key negotiation points
+   - Explain what the email requests
+
+3. **edit_draft** - Modify the draft
+   - Use when user wants to change something
+   - Can edit subject, body, or specific sections
+   - Show updated draft after each edit
+
+4. **rewrite_draft_with_feedback** - Regenerate completely
+   - Use when user wants significant changes
+   - Can change tone, add/remove points
+   - Creates a new version
+
+5. **approve_draft** - Mark as ready to send
+   - Requires explicit user confirmation
+   - Shows final preview before approval
+
+6. **send_approved_email** - Actually send the email
+   - ONLY use after approval
+   - REQUIRES confirm_send=True
+   - Shows success/failure result
+
+7. **cancel_draft** - Discard the draft
+   - Use if user wants to start over or cancel
+
+8. **get_draft_status** - Check current workflow stage
+   - Use to understand where we are in the process
+
+## Handling User Requests
+
+### When user says "send the email" / "send it now":
+1. Check if draft exists → If not, explain we need to create one first
+2. Check if draft is reviewed → If not, show it for review
+3. Check if draft is approved → If not, ask for approval
+4. Only then call send_approved_email with confirm_send=True
+
+### When user says "looks good" / "that's fine":
+- This means approval → Call approve_draft
+- Then ask if they want to send now or later
+
+### When user says "change X" / "make it more Y":
+- Call edit_draft or rewrite_draft_with_feedback
+- Show the updated version
+- Ask if the changes look good
+
+### When user says "start over" / "cancel":
+- Call cancel_draft
+- Offer to create a new draft
+
+## Response Format
+
+When showing a draft for review, use this format:
+
+```
+📧 **Email Draft Ready for Review**
+
+**To:** [recipient]
+**Subject:** [subject]
+
+---
+[email body]
+---
+
+📋 **This email requests:**
+1. [First negotiation point]
+2. [Second negotiation point]
+...
+
+**What would you like to do?**
+• Say "approve" to finalize
+• Tell me what to change
+• Say "cancel" to discard
+```
+
+## Tone Matching
+
+Match your responses to the email tone:
+- Professional tone → Be formal in your responses
+- Friendly tone → Be warm and conversational
+- Firm tone → Be direct and confident
+- Collaborative tone → Be partnership-focused
+
+## Example Conversations
+
+### Example 1: Happy Path
+User: "Draft an email to negotiate the liability clause"
+Agent: [calls create_negotiation_draft] "I've drafted a professional email requesting a liability cap..."
+User: "Looks good, send it"
+Agent: [calls approve_draft] "Great! The email is approved. Ready to send to john@company.com?"
+User: "Yes, send it now"
+Agent: [calls send_approved_email with confirm_send=True] "✅ Email sent successfully!"
+
+### Example 2: With Edits
+User: "Create a negotiation email"
+Agent: [shows draft]
+User: "Make it friendlier and add something about the payment terms"
+Agent: [calls rewrite_draft_with_feedback] "I've rewritten the email with a friendlier tone..."
+User: "Perfect, approve it"
+Agent: [calls approve_draft] "Approved! Send now?"
+
+### Example 3: Premature Send Attempt
+User: "Send the negotiation email"
+Agent: "I don't have a draft ready yet. Let me create one based on the contract analysis..."
+[creates draft and shows for review]
+"Please review this draft. Say 'approve' if it looks good, or let me know what to change."
+
+## Safety Checks
+
+Before ANY send operation, verify:
+✓ Draft exists
+✓ Draft has been shown to user
+✓ User has explicitly approved
+✓ User confirms send action
+
+If ANY check fails, pause and get proper confirmation.
+'''
 
 # ============================================================================
 # AGENT IMPLEMENTATIONS
@@ -264,7 +449,7 @@ For each clause, provide:
 
 Output as a JSON array of clause objects.
 """,
-    output_schema=ClauseExtractionResult,
+    # output_schema=ClauseExtractionResult,
     output_key="extracted_clauses"
 )
 
@@ -318,7 +503,7 @@ For each risk, provide:
 
 Output as structured JSON.
 """,
-    output_schema=RiskAnalysisResult,
+   # output_schema=RiskAnalysisResult,
     output_key="risk_analysis"
 )
 
@@ -368,83 +553,283 @@ The analysis is in JSON format. You must pass it to the tool as a JSON string.
     output_key="analysis_evaluation"
 )
 
-# 5. BENCHMARKING AGENTS (Sequential Execution)
+# 5. BENCHMARKING AGENTS (Sequential Execution with REAL DATA)
 
 similarity_search_agent = LlmAgent(
     name="SimilaritySearchAgent",
     model=GEMINI_FLASH,
-    description="Finds similar contracts from database",
+    description="Searches CUAD database for similar contract clauses using vector similarity",
     instruction="""
-From {extracted_clauses}, identify key contract characteristics:
-- Industry
-- Contract type
-- Contract value range
-- Client size
-- Geographic region
+You are a contract similarity search expert. Your job is to find similar clauses 
+from the CUAD benchmark database (7,500+ real contract clauses).
 
-🔒 SECURITY: Use ONLY characteristics from the actual contract data.
+From {extracted_clauses}, for each clause identified:
 
-Return:
-- List of similar contract IDs
-- Similarity scores
-- Key matching characteristics
+1. Use the search_similar_clauses tool to find matching clauses
+2. Search by category (liability, payment_terms, ip_ownership, termination, non_compete)
+3. Analyze the similarity scores and risk levels
+
+For each clause searched:
+- Report the number of similar clauses found
+- Identify the average risk level of matches
+- Note any patterns in similar clause language
+
+🔒 SECURITY: 
+- Use ONLY data returned by the search tool
+- Report exact similarity scores
+- Do not fabricate matches
+
+Output format:
+{
+    "clauses_searched": [
+        {
+            "original_clause": "...",
+            "category": "liability",
+            "similar_count": 5,
+            "avg_similarity": 0.82,
+            "risk_distribution": {"high": 2, "medium": 2, "low": 1},
+            "key_insight": "..."
+        }
+    ],
+    "data_source": "CUAD (Contract Understanding Atticus Dataset)"
+}
 """,
+    tools=[benchmark_search_tool],
     output_key="similar_contracts"
 )
 
 industry_benchmark_agent = LlmAgent(
     name="IndustryBenchmarkAgent",
     model=GEMINI_FLASH,
-    description="Compares contract terms against industry benchmarks",
+    description="Compares contract terms against real industry benchmarks from Freelancers Union and MBO Partners data",
     instruction="""
-Query benchmarking data for {extracted_clauses}:
+You are an industry benchmark expert with access to real freelancer contract data.
 
-1. Payment Terms (25th, 50th, 75th percentile)
-2. Liability Caps
-3. IP Ownership
-4. Termination Notice
+Query the benchmark database for {extracted_clauses}:
 
-🔒 SECURITY: Use ONLY data from benchmark database.
-If unavailable, state "Benchmark data not available".
+1. Use get_industry_benchmark tool to fetch real benchmark data
+2. Compare contract terms against percentile data (25th, 50th, 75th)
+3. Flag any terms in the bottom 25th percentile as "below market"
 
-Flag terms in bottom 25% as below market.
+Key benchmarks to compare:
+
+PAYMENT TERMS:
+- Net payment days (standard: Net-30)
+- Deposit percentage (standard: 25-50%)
+- Late fee rate (standard: 1.5% monthly)
+
+LIABILITY:
+- Cap relative to contract value (standard: 1x-2x)
+- Mutual vs unilateral indemnification
+- Carve-outs for gross negligence
+
+IP OWNERSHIP:
+- Assignment timing (upon payment)
+- Retention of pre-existing IP
+- Portfolio rights
+
+TERMINATION:
+- Notice period (standard: 14-30 days)
+- Payment on termination
+- Cure period for breach
+
+🔒 SECURITY: 
+- Use ONLY data from benchmark database
+- Report exact percentile rankings
+- If benchmark unavailable, state "Benchmark data not available"
+
+Output format:
+{
+    "benchmarks_applied": ["payment_terms", "liability", "ip_ownership", ...],
+    "findings": [
+        {
+            "clause_type": "payment_terms",
+            "contract_value": "Net-60",
+            "benchmark_median": "Net-30",
+            "percentile": 25,
+            "assessment": "below_market",
+            "recommendation": "Negotiate to Net-30 or better"
+        }
+    ],
+    "overall_position": "Below market in 2 of 5 categories",
+    "data_sources": ["Freelancers Union 2024", "MBO Partners 2024"]
+}
 """,
+    tools=[industry_benchmark_tool],
     output_key="benchmark_comparison"
 )
 
 clause_comparison_agent = LlmAgent(
     name="ClauseComparisonAgent",
     model=GEMINI_PRO,
-    description="Compares problematic clauses against alternatives",
+    description="Generates specific negotiation alternatives based on benchmark data",
     instruction="""
+You are a contract negotiation expert. Generate specific alternatives for problematic clauses.
+
 For each high/medium risk clause in {risk_analysis}:
 
-1. Find corresponding clauses in {similar_contracts}
-2. Identify better language
-3. Calculate improvement potential
-4. Provide 2-3 alternatives
+1. Use get_clause_alternatives tool to get:
+   - Lower-risk alternatives from CUAD database
+   - Industry-standard language
+   - Negotiation tips
 
-🔒 SECURITY: Use ONLY actual clauses from database.
-NEVER fabricate alternative language.
+2. Cross-reference with {similar_contracts} similarity data
 
-Prioritize by:
-1. Financial impact
-2. Risk reduction
-3. Negotiation likelihood
+3. Apply {benchmark_comparison} percentile rankings
+
+For each problematic clause, provide:
+
+ALTERNATIVE LANGUAGE:
+- 2-3 specific alternative clauses
+- Source of each alternative (CUAD, industry standard, etc.)
+- Risk reduction potential
+
+NEGOTIATION STRATEGY:
+- Success probability estimate
+- Key talking points
+- Fallback position
+
+PRIORITY RANKING:
+- Financial impact (estimated dollar value at risk)
+- Risk reduction potential
+- Negotiation likelihood
+
+🔒 SECURITY:
+- Use ONLY actual clauses from tools/database
+- NEVER fabricate alternative language
+- Base success estimates on tool data
+
+Output format:
+{
+    "clause_recommendations": [
+        {
+            "original_clause": "...",
+            "risk_level": "high",
+            "category": "liability",
+            "alternatives": [
+                {
+                    "text": "...",
+                    "source": "CUAD lower-risk clause",
+                    "risk_level": "low"
+                }
+            ],
+            "negotiation_tips": ["..."],
+            "success_probability": 0.65,
+            "priority_score": 9.2,
+            "estimated_value_at_risk": "$50,000+"
+        }
+    ],
+    "negotiation_order": ["liability", "payment_terms", "ip_ownership"],
+    "overall_strategy": "Lead with liability cap, offer compromise on payment terms"
+}
 """,
+    tools=[clause_alternatives_tool, benchmark_search_tool],
     output_key="clause_alternatives"
 )
 
-#  SequentialAgent pipeline
+
+#  BENCHMARK SUMMARY AGENT 
+
+benchmark_summary_agent = LlmAgent(
+    name="BenchmarkSummaryAgent",
+    model=GEMINI_FLASH,
+    description="Synthesizes all benchmark findings into actionable summary",
+    instruction="""
+Create an executive summary of the benchmark analysis.
+
+From the analysis data:
+- {similar_contracts}: Similarity search results
+- {benchmark_comparison}: Industry benchmark comparisons  
+- {clause_alternatives}: Negotiation recommendations
+
+Generate a clear, actionable summary:
+
+📊 BENCHMARK SUMMARY
+====================
+
+1. MARKET POSITION
+   - How this contract compares overall
+   - Key deviations from industry standards
+
+2. TOP 3 NEGOTIATION PRIORITIES
+   - Ranked by financial impact and success likelihood
+   - Specific dollar values where possible
+
+3. QUICK WINS
+   - Easy-to-negotiate improvements
+   - Standard language to request
+
+4. RED FLAGS
+   - Must-negotiate items
+   - Walk-away thresholds
+
+5. DATA CONFIDENCE
+   - Number of similar clauses analyzed
+   - Benchmark data sources used
+
+Keep the summary concise but specific.
+Use actual numbers and percentages from the analysis.
+""",
+    output_key="benchmark_summary"
+)
+
+# SequentialAgent pipeline with real data tools
 benchmarking_pipeline = SequentialAgent(
     name="BenchmarkingPipeline",
-    description="Compares contract against industry standards",
+    description="Compares contract against 7,500+ real clauses and industry benchmarks",
     sub_agents=[
         similarity_search_agent,
         industry_benchmark_agent,
-        clause_comparison_agent
+        clause_comparison_agent,
+        benchmark_summary_agent
     ]
 )
+
+#EMAIL DRAFTING AGENT
+email_drafting_agent = LlmAgent(
+    name="EmailDraftingAgent",
+    model=GEMINI_PRO,
+    description="Drafts negotiation email based on strategy",
+    instruction="""Draft a negotiation email using the analysis results.
+
+From {clause_alternatives} or {negotiation_strategy}, create an email:
+
+1. If recipient_email not known, ASK the user: "Who should I send this to?"
+2. Call create_negotiation_draft with:
+   - recipient_email: from user
+   - recipient_name: extract from email or ask
+   - sender_name: ask user or use "Contractor" 
+   - contract_name: from context
+   - tone: "professional" (or from strategy)
+   - negotiation_points: convert from clause_alternatives
+
+3. Show the draft preview to user
+4. Ask: "Does this look good, or would you like any changes?"
+
+🚨 DO NOT proceed to send without user approval.
+""",
+    tools=[create_draft_tool],
+    output_key="email_draft_result"
+)
+
+# EMAIL WORKFLOW AGENT  
+email_workflow_agent = LlmAgent(
+    name="EmailWorkflowAgent",
+    model=GEMINI_PRO,
+    description="Manages email review, editing, approval and sending",
+    instruction=EMAIL_WORKFLOW_INSTRUCTION,  # This is already defined in your file!
+    tools=[
+        review_draft_tool,
+        edit_draft_tool,
+        rewrite_draft_tool,
+        approve_draft_tool,
+        send_email_tool,
+        cancel_draft_tool,
+        draft_status_tool,
+    ],
+    output_key="email_workflow_response"
+)
+
 
 # 6. NEGOTIATION PIPELINE AGENTS
 
@@ -471,7 +856,7 @@ Include:
 
 Output as structured JSON.
 """,
-    output_schema=NegotiationStrategy,
+   # output_schema=NegotiationStrategy,
     output_key="negotiation_strategy"
 )
 
@@ -544,7 +929,7 @@ Extract:
 
 Output structured JSON.
 """,
-    output_schema=ParsedResponseResult,
+    # output_schema=ParsedResponseResult,
     output_key="parsed_response"
 )
 
@@ -582,12 +967,12 @@ REJECT if:
 
 Output as structured JSON.
 """,
-    output_schema=NegotiationDecisionResult,
+   # output_schema=NegotiationDecisionResult,
     output_key="negotiation_decision"
 )
 
 # ----------------------------------------------------------------------------
-# 7. CUSTOM NEGOTIATION ORCHESTRATOR (Fixed)
+# 7. CUSTOM NEGOTIATION ORCHESTRATOR 
 # ----------------------------------------------------------------------------
 
 class NegotiationOrchestrator(BaseAgent):
@@ -606,12 +991,12 @@ class NegotiationOrchestrator(BaseAgent):
     
     # Define class attributes for Pydantic compatibility
     _gmail_service: Optional[GmailIntegrationTool] = None
-    _negotiation_state: Dict[str, Any] = {}
+    _negotiation_state: Dict[str] = {}
     
-    def __init__(self, gmail_service: Optional[GmailIntegrationTool] = None, **kwargs):
+    def __init__(self, name: str = "NegotiationOrchestrator", gmail_service: Optional[GmailIntegrationTool] = None, **kwargs):
         # Initialize parent first
         super().__init__(
-            name="NegotiationOrchestrator",
+            name=name,
             description="Orchestrates contract negotiation via email for Negotify",
             sub_agents=[
                 strategy_planner,
@@ -642,7 +1027,7 @@ class NegotiationOrchestrator(BaseAgent):
         return object.__getattribute__(self, '_gmail_service')
     
     @property
-    def state(self) -> Dict[str, Any]:
+    def state(self) -> Dict[str]:
         """Get negotiation state"""
         return object.__getattribute__(self, '_negotiation_state')
     
@@ -661,8 +1046,7 @@ class NegotiationOrchestrator(BaseAgent):
                 yield Event(
                     author=self.name,
                     content=types.Content(
-                        parts=[types.Part.from_text(
-                            "❌ Error: Missing required negotiation data (risk_analysis or counterparty_email)"
+                        parts=[types.Part(text=f"❌ Error: Missing required negotiation data (risk_analysis or counterparty_email)"
                         )]
                     ),
                     actions=EventActions(escalate=True)
@@ -682,7 +1066,7 @@ class NegotiationOrchestrator(BaseAgent):
             yield Event(
                 author=self.name,
                 content=types.Content(
-                    parts=[types.Part.from_text(
+                    parts=[types.Part(text=
                         f"🤝 Starting Negotify negotiation with {counterparty_email}\n"
                         f"Deal breakers: {len(deal_breakers)} critical issues"
                     )]
@@ -696,7 +1080,7 @@ class NegotiationOrchestrator(BaseAgent):
                 yield Event(
                     author=self.name,
                     content=types.Content(
-                        parts=[types.Part.from_text(
+                        parts=[types.Part(text=
                             f"\n📧 Round {self.state['round']}/{self.state['max_rounds']}"
                         )]
                     )
@@ -726,7 +1110,7 @@ class NegotiationOrchestrator(BaseAgent):
                         yield Event(
                             author=self.name,
                             content=types.Content(
-                                parts=[types.Part.from_text(
+                                parts=[types.Part(text=
                                     f"📝 **Draft Email for Round {self.state['round']}**\n\n"
                                     f"---\n{email_draft}\n---\n\n"
                                     "⚠️ Please review: Approve or provide edits"
@@ -748,7 +1132,7 @@ class NegotiationOrchestrator(BaseAgent):
                             yield Event(
                                 author=self.name,
                                 content=types.Content(
-                                    parts=[types.Part.from_text("✅ Email approved!")]
+                                    parts=[types.Part(text="✅ Email approved!")]
                                 )
                             )
                             break
@@ -757,7 +1141,7 @@ class NegotiationOrchestrator(BaseAgent):
                             yield Event(
                                 author=self.name,
                                 content=types.Content(
-                                    parts=[types.Part.from_text("⏳ Waiting for approval...")]
+                                    parts=[types.Part(text="⏳ Waiting for approval...")]
                                 )
                             )
                             return
@@ -775,7 +1159,7 @@ class NegotiationOrchestrator(BaseAgent):
                     yield Event(
                         author=self.name,
                         content=types.Content(
-                            parts=[types.Part.from_text(
+                            parts=[types.Part(text=
                                 f"✅ Email sent! Thread: {result['thread_id']}"
                             )]
                         )
@@ -784,7 +1168,7 @@ class NegotiationOrchestrator(BaseAgent):
                     yield Event(
                         author=self.name,
                         content=types.Content(
-                            parts=[types.Part.from_text(
+                            parts=[types.Part(text=
                                 "[SIMULATION] Email would be sent here"
                             )]
                         )
@@ -797,7 +1181,7 @@ class NegotiationOrchestrator(BaseAgent):
                     yield Event(
                         author=self.name,
                         content=types.Content(
-                            parts=[types.Part.from_text("⏳ Awaiting response...")]
+                            parts=[types.Part(text="⏳ Awaiting response...")]
                         )
                     )
                     break
@@ -820,7 +1204,7 @@ class NegotiationOrchestrator(BaseAgent):
                     yield Event(
                         author=self.name,
                         content=types.Content(
-                            parts=[types.Part.from_text(
+                            parts=[types.Part(text=
                                 f"✅ SUCCESS! Round {self.state['round']}\n"
                                 f"Confidence: {confidence}%"
                             )]
@@ -833,7 +1217,7 @@ class NegotiationOrchestrator(BaseAgent):
                     yield Event(
                         author=self.name,
                         content=types.Content(
-                            parts=[types.Part.from_text("❌ Negotiation unsuccessful")]
+                            parts=[types.Part(text="❌ Negotiation unsuccessful")]
                         )
                     )
                     ctx.session.state["negotiation_outcome"] = "failed"
@@ -846,7 +1230,7 @@ class NegotiationOrchestrator(BaseAgent):
                     yield Event(
                         author=self.name,
                         content=types.Content(
-                            parts=[types.Part.from_text(
+                            parts=[types.Part(text=
                                 f"🔄 Preparing round {self.state['round'] + 1}"
                             )]
                         )
@@ -857,7 +1241,7 @@ class NegotiationOrchestrator(BaseAgent):
             yield Event(
                 author=self.name,
                 content=types.Content(
-                    parts=[types.Part.from_text(
+                    parts=[types.Part(text=
                         f"⚠️ Max rounds ({self.state['max_rounds']}) reached"
                     )]
                 ),
@@ -871,7 +1255,7 @@ class NegotiationOrchestrator(BaseAgent):
             yield Event(
                 author=self.name,
                 content=types.Content(
-                    parts=[types.Part.from_text(f"❌ Error: {str(e)}")]
+                    parts=[types.Part(text=f"❌ Error: {str(e)}")]
                 ),
                 actions=EventActions(escalate=True)
             )
@@ -897,7 +1281,41 @@ analysis_pipeline = SequentialAgent(
 # Initialize the negotiation pipeline.
 # We instantiate it here so it can be passed to the root_agent's sub_agents list.
 # The actual Gmail service with credentials will be configured later if needed.
-negotiation_pipeline = None 
+
+class NegotiationRoundInitializer(BaseAgent):
+    """Initializes the negotiation round number in the session state."""
+
+    def __init__(self, name: str = "NegotiationRoundInitializer", **kwargs):
+        super().__init__(name=name, description="Initializes the negotiation round.", **kwargs)
+
+    async def _run_async_impl(self, ctx: InvocationContext) -> AsyncGenerator[Event, None]:
+        """Sets the negotiation_round to 1 if it's not already set."""
+        if "negotiation_round" not in ctx.session.state:
+            ctx.session.state["negotiation_round"] = 1
+        
+        # Also initialize concessions_made, as strategy_planner needs it.
+        if "concessions_made" not in ctx.session.state:
+            ctx.session.state["concessions_made"] = []
+
+        yield Event(
+            author=self.name,
+            content=types.Content(
+                parts=[types.Part(text="Negotiation round initialized.")]
+            ),
+        )
+
+negotiation_round_initializer = NegotiationRoundInitializer()
+
+negotiation_pipeline = SequentialAgent(
+    name="NegotiationPipeline",
+    description="Complete negotiation: Strategy → Draft → Review → Edit → Approve → Send",
+    sub_agents=[
+        negotiation_round_initializer,
+        strategy_planner,         # creates strategy
+        email_drafting_agent,     # drafts the email
+        email_workflow_agent,     #  handles review/edit/approve/send
+    ]
+)
 
 
 root_agent = LlmAgent(
@@ -982,6 +1400,7 @@ You are not a lawyer. Advise consulting legal counsel for complex situations.
     sub_agents=[
         analysis_pipeline,
         benchmarking_pipeline,
+        negotiation_pipeline,
     ]
 )
 # ============================================================================

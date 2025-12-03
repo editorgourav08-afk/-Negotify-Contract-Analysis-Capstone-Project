@@ -1,0 +1,198 @@
+{
+  "version": "1.0",
+  "source": "CUAD (Contract Understanding Atticus Dataset)",
+  "processed_date": "2025-12-03T13:35:24.893354",
+  "stats": {
+    "total_clauses": 15,
+    "unique_contracts": 0,
+    "by_category": {
+      "liability": 3,
+      "payment_terms": 3,
+      "ip_ownership": 3,
+      "termination": 3,
+      "non_compete": 3
+    }
+  },
+  "clauses": [
+    {
+      "chunk_id": "sample_liab_001",
+      "text": "The Contractor's total liability under this Agreement shall not exceed the total fees paid to Contractor during the twelve (12) month period immediately preceding the claim.",
+      "clause_category": "liability",
+      "cuad_category": "Cap On Liability",
+      "contract_id": "sample_001",
+      "source_dataset": "CUAD_sample",
+      "risk_level": "low",
+      "char_count": 173,
+      "word_count": 26,
+      "extraction_date": "2025-12-03T13:35:24.891608"
+    },
+    {
+      "chunk_id": "sample_liab_002",
+      "text": "Contractor shall indemnify, defend, and hold harmless Client from and against any and all claims, damages, losses, costs, and expenses, including attorney's fees, arising from or relating to Contractor's performance of the Services, without any limitation or cap.",
+      "clause_category": "liability",
+      "cuad_category": "Indemnification",
+      "contract_id": "sample_002",
+      "source_dataset": "CUAD_sample",
+      "risk_level": "high",
+      "char_count": 263,
+      "word_count": 38,
+      "extraction_date": "2025-12-03T13:35:24.891624"
+    },
+    {
+      "chunk_id": "sample_liab_003",
+      "text": "Neither party shall be liable to the other for any indirect, incidental, consequential, special, or exemplary damages arising out of this Agreement, even if such party has been advised of the possibility of such damages.",
+      "clause_category": "liability",
+      "cuad_category": "Limitation Of Liability",
+      "contract_id": "sample_003",
+      "source_dataset": "CUAD_sample",
+      "risk_level": "low",
+      "char_count": 220,
+      "word_count": 35,
+      "extraction_date": "2025-12-03T13:35:24.891631"
+    },
+    {
+      "chunk_id": "sample_pay_001",
+      "text": "Client shall pay all undisputed invoices within thirty (30) days of receipt. Late payments shall accrue interest at the rate of 1.5% per month.",
+      "clause_category": "payment_terms",
+      "cuad_category": "Minimum Commitment",
+      "contract_id": "sample_004",
+      "source_dataset": "CUAD_sample",
+      "risk_level": "low",
+      "char_count": 143,
+      "word_count": 24,
+      "extraction_date": "2025-12-03T13:35:24.891636"
+    },
+    {
+      "chunk_id": "sample_pay_002",
+      "text": "Payment shall be due upon Client's acceptance of the deliverables, such acceptance not to be unreasonably withheld. Client shall have sixty (60) days to review and accept deliverables.",
+      "clause_category": "payment_terms",
+      "cuad_category": "Minimum Commitment",
+      "contract_id": "sample_005",
+      "source_dataset": "CUAD_sample",
+      "risk_level": "medium",
+      "char_count": 184,
+      "word_count": 28,
+      "extraction_date": "2025-12-03T13:35:24.891641"
+    },
+    {
+      "chunk_id": "sample_pay_003",
+      "text": "All fees are contingent upon Client's satisfaction with the Services. Client shall have sole discretion to determine whether the Services meet Client's requirements.",
+      "clause_category": "payment_terms",
+      "cuad_category": "Minimum Commitment",
+      "contract_id": "sample_006",
+      "source_dataset": "CUAD_sample",
+      "risk_level": "high",
+      "char_count": 165,
+      "word_count": 23,
+      "extraction_date": "2025-12-03T13:35:24.891646"
+    },
+    {
+      "chunk_id": "sample_ip_001",
+      "text": "Upon full payment, Contractor hereby assigns to Client all right, title, and interest in and to the Deliverables, including all intellectual property rights therein. Contractor retains ownership of pre-existing materials and general skills.",
+      "clause_category": "ip_ownership",
+      "cuad_category": "IP Ownership Assignment",
+      "contract_id": "sample_007",
+      "source_dataset": "CUAD_sample",
+      "risk_level": "low",
+      "char_count": 240,
+      "word_count": 33,
+      "extraction_date": "2025-12-03T13:35:24.891652"
+    },
+    {
+      "chunk_id": "sample_ip_002",
+      "text": "All work product, inventions, discoveries, and intellectual property created by Contractor during the term of this Agreement, whether or not related to the Services, shall be the sole and exclusive property of Client.",
+      "clause_category": "ip_ownership",
+      "cuad_category": "IP Ownership Assignment",
+      "contract_id": "sample_008",
+      "source_dataset": "CUAD_sample",
+      "risk_level": "high",
+      "char_count": 217,
+      "word_count": 33,
+      "extraction_date": "2025-12-03T13:35:24.891657"
+    },
+    {
+      "chunk_id": "sample_ip_003",
+      "text": "Client is granted a non-exclusive, perpetual, royalty-free license to use the Deliverables for Client's internal business purposes. Contractor retains all ownership rights in the Deliverables.",
+      "clause_category": "ip_ownership",
+      "cuad_category": "License Grant",
+      "contract_id": "sample_009",
+      "source_dataset": "CUAD_sample",
+      "risk_level": "low",
+      "char_count": 192,
+      "word_count": 25,
+      "extraction_date": "2025-12-03T13:35:24.891661"
+    },
+    {
+      "chunk_id": "sample_term_001",
+      "text": "Either party may terminate this Agreement for convenience upon thirty (30) days prior written notice. Upon termination, Client shall pay for all Services rendered through the effective date of termination.",
+      "clause_category": "termination",
+      "cuad_category": "Termination For Convenience",
+      "contract_id": "sample_010",
+      "source_dataset": "CUAD_sample",
+      "risk_level": "low",
+      "char_count": 205,
+      "word_count": 30,
+      "extraction_date": "2025-12-03T13:35:24.891667"
+    },
+    {
+      "chunk_id": "sample_term_002",
+      "text": "Client may terminate this Agreement at any time, for any reason or no reason, effective immediately upon notice to Contractor. Upon termination, Contractor shall not be entitled to any further compensation.",
+      "clause_category": "termination",
+      "cuad_category": "Termination For Convenience",
+      "contract_id": "sample_011",
+      "source_dataset": "CUAD_sample",
+      "risk_level": "high",
+      "char_count": 206,
+      "word_count": 31,
+      "extraction_date": "2025-12-03T13:35:24.891672"
+    },
+    {
+      "chunk_id": "sample_term_003",
+      "text": "This Agreement shall automatically renew for successive one (1) year periods unless either party provides written notice of non-renewal at least sixty (60) days prior to the end of the then-current term.",
+      "clause_category": "termination",
+      "cuad_category": "Renewal Term",
+      "contract_id": "sample_012",
+      "source_dataset": "CUAD_sample",
+      "risk_level": "medium",
+      "char_count": 203,
+      "word_count": 32,
+      "extraction_date": "2025-12-03T13:35:24.891677"
+    },
+    {
+      "chunk_id": "sample_nc_001",
+      "text": "During the term of this Agreement and for a period of six (6) months thereafter, Contractor shall not provide similar services to direct competitors of Client in the same metropolitan area.",
+      "clause_category": "non_compete",
+      "cuad_category": "Non-Compete",
+      "contract_id": "sample_013",
+      "source_dataset": "CUAD_sample",
+      "risk_level": "medium",
+      "char_count": 189,
+      "word_count": 31,
+      "extraction_date": "2025-12-03T13:35:24.891682"
+    },
+    {
+      "chunk_id": "sample_nc_002",
+      "text": "Contractor agrees not to engage in any business that competes with Client anywhere in the world for a period of two (2) years following termination of this Agreement.",
+      "clause_category": "non_compete",
+      "cuad_category": "Non-Compete",
+      "contract_id": "sample_014",
+      "source_dataset": "CUAD_sample",
+      "risk_level": "high",
+      "char_count": 166,
+      "word_count": 28,
+      "extraction_date": "2025-12-03T13:35:24.891687"
+    },
+    {
+      "chunk_id": "sample_nc_003",
+      "text": "During the term of this Agreement, Contractor agrees to work exclusively for Client and shall not provide services to any third party without Client's prior written consent.",
+      "clause_category": "non_compete",
+      "cuad_category": "Exclusivity",
+      "contract_id": "sample_015",
+      "source_dataset": "CUAD_sample",
+      "risk_level": "medium",
+      "char_count": 173,
+      "word_count": 27,
+      "extraction_date": "2025-12-03T13:35:24.891691"
+    }
+  ]
+}
